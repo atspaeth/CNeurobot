@@ -6,3 +6,5 @@ LDFLAGS=
 LDLIBS=-lrt -lpruio 
 
 all : neurotic reset
+
+neurotic reset : libneurobot.o

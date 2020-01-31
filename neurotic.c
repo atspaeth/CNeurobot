@@ -1,3 +1,12 @@
+/*
+ *
+ * neurotic.c
+ *
+ * The original neural CPG script, which could really use some
+ * abstraction now that I'm doing all these alternate weird things, but
+ * who wants to spend the effort breaking it up into pieces? :( 
+ *
+ */
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -13,22 +22,18 @@
 #include <libpruio/pruio_pins.h>
 
 /* The strength of position feedback in pA. */
-#define DEFAULT_FEEDBACK 40
+#define DEFAULT_FEEDBACK 5
 
 /* Comment out to skip measuring actual dt. */
 #define MEASURE_TIME
-
 
 /* Boilerplate: number of cells including muscles. */
 #define N_CELLS 16
 
 /* 
- * Safety feature: max PWM duty cycle. Can be changed by command-line
- * options, but should never be increased above 40%, which is safe
- * according to the datasheet in the current configuration, where each
- * actuator is only active half of the time.
+ * Safety feature: max PWM duty cycle. 
  */
-#define DEFAULT_PWM_MAX 0.2
+#define DEFAULT_PWM_MAX 0.3
 
 /* Constant PWM frequency. */
 #define PWM_FREQ_HZ 200.f
@@ -82,24 +87,47 @@ const struct params {
 #undef RS
 #undef LTS
 
-const float S[N_CELLS][N_CELLS] = { 
-    { 0, 5000, -5000,  0,  0,  0,  0,  0,  0, 0,  2000, 0 },
-    {5000,  0, -5000,  0,  0,  0,  0,  0,  0, 0,  0,  0},
-    { 1200,  1200,  0,  2000,  0,  0,  0,  0,  0, 0,  0,  0},
-    { 0,  2000,  0,  0,  5000, -5000,  0,  0,  0, 0,  0,  0},
-    { 0,  0,  0,  5000,  0, -5000,  0,  0,  0, 0,  0,  0},
-    { 0,  0,  0,  1200,  1200,  0,  2000,  0,  0, 0,  0,  0},
-    { 0,  0,  0,  0,  2000,  0,  0,  5000, -5000, 0,  0,  0},
-    { 0,  0,  0,  0,  0,  0,  5000,  0, -5000, 0,  0,  0},
-    { 0,  0,  0,  0,  0,  0,  1200,  1200,  0, 2000,  0,  0},
-    { 0,  0,  0,  0,  0,  0,  0,  2000,  0, 0,  5000, -5000},
-    { 0,  0,  0,  0,  0,  0,  0,  0,  0, 5000,  0, -5000},
-    { 2000,  0,  0,  0,  0,  0,  0,  0,  0, 1200,  1200,  0},
-    { 200,   200,  0,  0,  0,  0,  0,  0,  0, 0,  0,  0},
-    { 0,  0,  0,  200,   200,  0,  0,  0,  0, 0,  0,  0},
-    { 0,  0,  0,  0,  0,  0,  200,   200,  0, 0,  0,  0},
-    { 0,  0,  0,  0,  0,  0,  0,  0,  0, 200,   200,  0} 
-};
+/* const float S[N_CELLS][N_CELLS] = { */
+/*     {  0, 1000, -1000,   0,   0,   0,   0,   0,   0,   0,  400,   0}, */
+/*     { 1000,   0, -1000,   0,   0,   0,   0,   0,   0,   0,   0,   0}, */
+/*     {  100, 100, 0, 400,   0,   0,   0,   0,   0,   0,   0,   0}, */
+/*     {  0,  400,   0,   0, 1000, -1000,   0,   0,   0,   0,   0,   0}, */
+/*     {  0,   0,   0, 1000,   0, -1000,   0,   0,   0,   0,   0,   0}, */
+/*     {  0,   0,   0,  100, 100,  0, 400,   0,   0,   0,   0,   0}, */
+/*     {  0,   0,   0,   0,  400,   0,   0, 1000, -1000,   0,   0,   0}, */
+/*     {  0,   0,   0,   0,   0,   0, 1000,   0, -1000,   0,   0,   0}, */
+/*     {  0,   0,   0,   0,   0,   0,  100, 100,  0, 400,   0,   0}, */
+/*     {  0,   0,   0,   0,   0,   0,   0,  400,   0,   0, 1000, -1000}, */
+/*     {  0,   0,   0,   0,   0,   0,   0,   0,   0, 1000,   0, -1000}, */
+/*     { 400,   0,   0,   0,   0,   0,   0,   0,   0,  100, 100,  0}, */
+/*     { 40,  40,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0}, */
+/*     {  0,   0,   0,  40,  40,   0,   0,   0,   0,   0,   0,   0}, */
+/*     {  0,   0,   0,   0,   0,   0,  40,  40,   0,   0,   0,   0}, */
+/*     {  0,   0,   0,   0,   0,   0,   0,   0,   0,  40,  40,   0}}; */
+
+
+
+
+
+const float S[N_CELLS][N_CELLS] = {
+ {   0, 1000,-1000,    0,    0,    0,    0,    0,    0,    0,  400,    0},
+ {1000,    0,-1000,    0,    0,    0,    0,    0,    0,    0,    0,    0},
+ {  60,   60,    0,  100,    0,    0,    0,    0,    0,    0,    0,    0},
+ {   0,  400,    0,    0, 1000,-1000,    0,    0,    0,    0,    0,    0},
+ {   0,    0,    0, 1000,    0,-1000,    0,    0,    0,    0,    0,    0},
+ {   0,    0,    0,   60,   60,    0,  100,    0,    0,    0,    0,    0},
+ {   0,    0,    0,    0,  400,    0,    0, 1000,-1000,    0,    0,    0},
+ {   0,    0,    0,    0,    0,    0, 1000,    0,-1000,    0,    0,    0},
+ {   0,    0,    0,    0,    0,    0,   60,   60,    0,  100,    0,    0},
+ {   0,    0,    0,    0,    0,    0,    0,  400,    0,    0, 1000,-1000},
+ {   0,    0,    0,    0,    0,    0,    0,    0,    0, 1000,    0,-1000},
+ { 100,    0,    0,    0,    0,    0,    0,    0,    0,   60,   60,    0},
+ {   0,   40,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0},
+ {   0,    0,    0,    0,   40,    0,    0,    0,    0,    0,    0,    0},
+ {   0,    0,    0,    0,    0,    0,    0,   40,    0,    0,    0,    0},
+ {   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,   40,    0}};
+
+
 
 void state_update(float dt, float i_in, 
         const struct state *st, const struct params *pr,
@@ -303,7 +331,7 @@ int main(int argc, char**argv)
                 states[i].u += params[i].d;
 
                 for (int j = 0; j < N_CELLS; j++) {
-                    states[j].j += S[j][i] / params[j].tau;
+                    states[j].j += S[j][i];
                 }
             }
 
@@ -311,9 +339,14 @@ int main(int argc, char**argv)
             if (i==0 || i==3 || i==6 || i==9) {
                 int prev = (i/3+3)%4;
                 int next = (i/3+1)%4;
+                /*
                 float prev_err = 0.85 - actuator_position[prev];
                 float next_err = 0.15 - actuator_position[next];
                 i_in = -feedback*(prev_err*prev_err + next_err*next_err);
+                */
+                float prev_err = fabs(1 - actuator_position[prev]);
+                float next_err = fabs(0 - actuator_position[next]);
+                i_in = -feedback*(prev_err + next_err);
             }
 
             /*
@@ -392,7 +425,7 @@ int main(int argc, char**argv)
         + (stop_time.tv_sec - start_time.tv_sec) * US_PER_SEC;
     fprintf(stderr, "Simulated %ld steps in %ldms.\n", 
             num_dts, delta_t_us / 1000);
-    fprintf(stderr, " (Timestep %ldus actual, %dus nominal.)\n",
+    fprintf(stderr, " (Timestep %ldμs actual, %dμs nominal.)\n",
             delta_t_us / num_dts, DT_US);
 #endif
 

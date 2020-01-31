@@ -1,12 +1,9 @@
 /*
  *
- * cpg4cell.c
+ * backwards.c
  *
- * The actual original. This is the one that has only 4 cells in the CPG
- * and breaks all the rules of neural circuit design by having one cell
- * that synapses on itself and has excitatory effect at one terminal and
- * inhibitory effect at the other. Basically each module of the better
- * design is one cell in this design.
+ * Use two copies of the CPG from neurotic.c to enable the robot to walk
+ * forwards and backwards. 
  *
  */
 #include <stdbool.h>
@@ -24,22 +21,19 @@
 #include <libpruio/pruio_pins.h>
 
 /* The strength of position feedback in pA. */
-#define DEFAULT_FEEDBACK 40
+#define DEFAULT_FEEDBACK 5
 
-/* Comment out to skip measuring actual dt. */
-#define MEASURE_TIME
+/* Time (in ms) at which to reverse direction. */
+#define DEFAULT_REVERSAL_TIME 10000.0
 
 
 /* Boilerplate: number of cells including muscles. */
-#define N_CELLS 8
+#define N_CELLS 28
 
 /* 
- * Safety feature: max PWM duty cycle. Can be changed by command-line
- * options, but should never be increased above 40%, which is safe
- * according to the datasheet in the current configuration, where each
- * actuator is only active half of the time.
+ * Safety feature: max PWM duty cycle. 
  */
-#define DEFAULT_PWM_MAX 0.2
+#define DEFAULT_PWM_MAX 0.3
 
 /* Constant PWM frequency. */
 #define PWM_FREQ_HZ 200.f
@@ -53,8 +47,9 @@
 #define NS_PER_US 1000
 #define US_PER_MS 1000
 #define MS_PER_SEC 1000
+#define NS_PER_MS (NS_PER_US * US_PER_MS)
 #define US_PER_SEC (US_PER_MS * MS_PER_SEC)
-#define NS_PER_SEC (NS_PER_US * US_PER_SEC)
+#define NS_PER_SEC (NS_PER_MS * MS_PER_SEC)
 
 const int pwm_pins[4] = {
     P9_31, P9_29, P9_14, P9_16
@@ -70,32 +65,115 @@ struct state {
     [0 ... N_CELLS-1] = {.v=-60}
 };
 
-struct params {
+/* 
+ * Designated initializers don't support weird ranges, and I want the
+ * parameters to be constant, so temporarily define the parameters for
+ * the two types as constant structs.
+ */
+#define RS {.a=0.03,.b=-2,.c=-50,.d=100,.C=100,.k=0.7,.vr=-60,.vt=-40,.vp=25,.tau=5}
+#define LTS {.a=0.03,.b=8,.c=-53,.d=20,.C=100,.k=1,.vr=-56,.vt=-42,.vp=25,.tau=20}
+
+const struct params {
     float C, k, tau;
     float a, b, c, d;
     float vr, vt, vp;
-} params[] = {
-    [0 ... N_CELLS-1] = {
-        .C=100, .k=0.7, .tau=5, 
-        .a=0.03, .b=-2, .c=-50, .d=100,
-        .vr=-60, .vt=-40, .vp=30 
-    }
+} params[N_CELLS] = {
+    [0] = RS, [1] = RS, [2] = LTS,
+    [3] = RS, [4] = RS, [5] = LTS,
+    [6] = RS, [7] = RS, [8] = LTS,
+    [9] = RS, [10] = RS, [11] = LTS,
+    [12] = RS, [13] = RS, [14] = LTS,
+    [15] = RS, [16] = RS, [17] = LTS,
+    [18] = RS, [19] = RS, [20] = LTS,
+    [21] = RS, [22] = RS, [23] = LTS,
+    [24 ... 27] = RS
 };
 
 
+#undef RS
+#undef LTS
+
+/* This is waay too much matrix. :( */
 const float S[N_CELLS][N_CELLS] = {
-    { 5000,-5000, -900,  900},
-    {  900, 5000,-5000, -900},
-    { -900,  900, 5000,-5000},
-    {-5000, -900,  900, 5000},
-    {  200,    0, -200,    0},
-    {    0,  200,    0, -200},
-    { -200,    0,  200,    0},
-    {    0,- 200,    0,  200}
-};
+    {    0,  1000, -1000,     0,     0,     0,     0,     0,     0,
+        0,   400,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0},
+    { 1000,     0, -1000,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0},
+    {    0,     0,     0,  1000,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0},
+    {    0,   400,     0,     0,  1000, -1000,     0,     0,     0,
+        0,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0},
+    {    0,     0,     0,  1000,     0, -1000,     0,     0,     0,
+        0,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0},
+    {    0,     0,     0,     0,     0,     0,  1000,     0,     0,
+        0,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0},
+    {    0,     0,     0,     0,   400,     0,     0,  1000, -1000,
+        0,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0},
+    {    0,     0,     0,     0,     0,     0,  1000,     0, -1000,
+        0,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0},
+    {    0,     0,     0,     0,     0,     0,     0,     0,     0,
+        1000,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0},
+    {    0,     0,     0,     0,     0,     0,     0,   400,     0,
+        0,  1000, -1000,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0},
+    {    0,     0,     0,     0,     0,     0,     0,     0,     0,
+        1000,     0, -1000,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0},
+    { 1000,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0},
+    {    0,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,  1000, -1000,     0,   400,     0,
+        0,     0,     0,     0,     0,     0},
+    {    0,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,  1000,     0, -1000,     0,     0,     0,
+        0,     0,     0,     0,     0,     0},
+    {    0,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,  1000,     0,     0},
+    {    0,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0,     0,  1000, -1000,
+        0,   400,     0,     0,     0,     0},
+    {    0,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0,  1000,     0, -1000,
+        0,     0,     0,     0,     0,     0},
+    {    0,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,  1000,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0},
+    {    0,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,  1000, -1000,     0,   400,     0},
+    {    0,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0,     0,     0,     0,
+        1000,     0, -1000,     0,     0,     0},
+    {    0,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0,  1000,     0,     0,
+        0,     0,     0,     0,     0,     0},
+    {    0,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,   400,     0,     0,     0,     0,
+        0,     0,     0,     0,  1000, -1000},
+    {    0,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,  1000,     0, -1000},
+    {    0,     0,     0,     0,     0,     0,     0,     0,     0,
+        0,     0,     0,     0,     0,     0,     0,     0,     0,
+        1000,     0,     0,     0,     0,     0},
+{40,40,0,0,0,0,0,0,0, 0,0,0,40,40,0,0,0,0, 0,0,0,0,0,0},
+{0,0,0,40,40,0,0,0,0, 0,0,0,0,0,0,40,40,0, 0,0,0,0,0,0},
+{0,0,0,0,0,0,40,40,0, 0,0,0,0,0,0,0,0,0, 40,40,0,0,0,0},
+{0,0,0,0,0,0,0,0,0, 40,40,0,0,0,0,0,0,0, 0,0,0,40,40,0}};
 
 void state_update(float dt, float i_in, 
-        struct state *st, struct params *pr,
+        const struct state *st, const struct params *pr,
         struct state *out) {
     float i_na = pr->k * (st->v - pr->vr) * (st->v - pr->vt);
     out->v += dt * (i_na - st->u + st->i + i_in) / pr->C;
@@ -143,7 +221,7 @@ void die_gracefully(int signal)
     fprintf(stderr, "Caught signal, exiting.\n");
 }
 
-int logprintf(const char *fmt, ...) 
+int datalogf(const char *fmt, ...) 
 {
     if (g_logfile == NULL) return 0;
 
@@ -158,12 +236,17 @@ int logprintf(const char *fmt, ...)
 int main(int argc, char**argv) 
 {
 
+    /*
+     * Allow user specification of the feedback constant 
+     * and maximum PWM duty cycle.
+     */
     float pwm_max = DEFAULT_PWM_MAX;
     float feedback = DEFAULT_FEEDBACK;
+    float reverse_time_ms = DEFAULT_REVERSAL_TIME;
 
     int opt;
     char *endptr;
-    while ((opt = getopt(argc, argv, "p:k:")) != -1) {
+    while ((opt = getopt(argc, argv, "p:k:r:")) != -1) {
         switch (opt) {
         case 'p':
             pwm_max = strtod(optarg, &endptr)/100;
@@ -174,6 +257,11 @@ int main(int argc, char**argv)
             feedback = strtod(optarg, &endptr);
             if (endptr && *endptr != '\0') 
                 die("Invalid feedback constant", optarg);
+            break;
+        case 'r':
+            reverse_time_ms = strtod(optarg, &endptr)*1000;
+            if (endptr && *endptr != '\0')
+                die("Invalid reversal time", optarg);
             break;
         }
     }
@@ -227,8 +315,7 @@ int main(int argc, char**argv)
 
     /*
      * Initialize the four PWM pins corresponding to the
-     * motors' enable lines. These run at 20kHz to stay
-     * outside of audio range, and begin at 0% duty cycle.
+     * motors' enable lines. 
      */
     for (int i = 0; i < 4; i++) {
         if (pruio_pwm_setValue(g_pru, pwm_pins[i], PWM_FREQ_HZ, 0))
@@ -247,6 +334,10 @@ int main(int argc, char**argv)
     
     float actuator_position[4];
 
+    /*
+     * An initial condition that ensures the first cell spikes
+     * to start off the chain reaction... 
+     */
     states[0].v = 0;
 
     /* 
@@ -256,13 +347,17 @@ int main(int argc, char**argv)
     long num_dts = 0;
     struct timespec last_time;
     clock_gettime(CLOCK_MONOTONIC, &last_time);
-#ifdef MEASURE_TIME
     struct timespec start_time = last_time;
-#endif
 
-    logprintf("t,A0,A1,A2,A3,V0,V1,V2,V3,V4,V5,V6,V7\n");
+    /* Print the datalog headers for all the cells. */
+    datalogf("t,A0,A1,A2,A3");
+    for (int i=0; i<N_CELLS; i++)
+        datalogf(",V%d", i);
+    datalogf("\n");
+
+    bool reversed_yet = false;
     while (!g_please_die_kthxbai) {
-        logprintf("%f", num_dts * DT_MS);
+        datalogf("%f", num_dts * DT_MS);
 
         /* 
          * Read all the actuator positions, taking a 12-bit ADC
@@ -272,7 +367,7 @@ int main(int argc, char**argv)
         for (int i = 0; i < 4; ++i) {
             uint16_t raw = g_pru->Adc->Value[i+1];
             actuator_position[i] = 1.f*raw / (1<<12);
-            logprintf(", %f", actuator_position[i]);
+            datalogf(", %f", actuator_position[i]);
         }
 
 
@@ -291,17 +386,25 @@ int main(int argc, char**argv)
                 states[i].u += params[i].d;
 
                 for (int j = 0; j < N_CELLS; j++) {
-                    states[j].j += S[j][i] / params[j].tau;
+                    states[j].j += S[j][i];
                 }
             }
 
             float i_in = 0;
-            if (i < 4) {
-                int prev = (i+3)%4;
-                int next = (i+1)%4;
-                float prev_err = 0.85 - actuator_position[prev];
-                float next_err = 0.15 - actuator_position[next];
-                i_in = -feedback*(prev_err*prev_err + next_err*next_err);
+            if ((i%3) == 0  &&  i < N_CELLS-4) {
+                int prev = (i/3+3)%4;
+                int next = (i/3+1)%4;
+
+                /* From 12 on, feedback goes the other way. */
+                if (i >= 12) {
+                    int tmp = prev;
+                    prev = next;
+                    next = tmp;
+                }
+                
+                float prev_err = fabs(1 - actuator_position[prev]);
+                float next_err = fabs(0 - actuator_position[next]);
+                i_in = -feedback*(prev_err + next_err);
             }
 
             /*
@@ -315,7 +418,36 @@ int main(int argc, char**argv)
             state_update(DT_MS/2, i_in, &states[i], &params[i], &tmpstate);
             state_update(DT_MS, i_in, &tmpstate, &params[i], &states[i]);
 
-            logprintf(", %f", states[i].v);
+            datalogf(", %f", states[i].v);
+        }
+
+
+        /*
+         * Check to see if we just passed the desired reversal time for
+         * the first time, and if so, stop the forward CPG and
+         * activate the reverse one.
+         */
+        if (!reversed_yet) {
+            long total_ms = 
+                (last_time.tv_nsec - start_time.tv_nsec) / NS_PER_MS
+                + (last_time.tv_sec - start_time.tv_sec) * MS_PER_SEC;
+            if (total_ms >= reverse_time_ms) {
+                printf("Reversing at %ldms.\n", total_ms);
+
+                /* 
+                 * Reversing is accomplished by causing all the
+                 * inhibitory cells in the forward CPG to spike,
+                 * guaranteeing that it stops, and causing an arbitrary
+                 * cell in the reverse CPG to spike so it starts. I'm
+                 * doing this by just moving all those neurons above
+                 * their threshold, which is hacky, but hey, it's
+                 * basically a delta synapse from a sensory cell...
+                 */
+                states[2].v = states[5].v = states[8].v = states[11].v = 0;
+                states[12].v = 0;
+
+                reversed_yet = true;
+            }
         }
 
         /* 
@@ -346,7 +478,7 @@ int main(int argc, char**argv)
             if (pruio_gpio_setValue(g_pru, gpio_pins[i], mask))
                 die("Couldn't do GPIO", g_pru->Errr);
         }
-        logprintf("\n");
+        datalogf("\n");
 
         /* 
          * Check how long it has been, then sleep for the rest of
@@ -372,7 +504,6 @@ int main(int argc, char**argv)
         num_dts++;
     }
 
-#ifdef MEASURE_TIME
     struct timespec stop_time;
     clock_gettime(CLOCK_MONOTONIC, &stop_time);
     long delta_t_us = 
@@ -382,7 +513,6 @@ int main(int argc, char**argv)
             num_dts, delta_t_us / 1000);
     fprintf(stderr, " (Timestep %ldus actual, %dus nominal.)\n",
             delta_t_us / num_dts, DT_US);
-#endif
 
     cleanup();
 }
