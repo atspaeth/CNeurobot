@@ -4,7 +4,8 @@ WARN=-Wall -Wextra
 CFLAGS=-std=gnu99 $(OPTIMIZE) $(PLATFORM) $(WARN) 
 LDFLAGS=
 LDLIBS=-lrt -lpruio 
+EXECUTABLES=neurotic reset backwards
 
-all : neurotic reset
+all : $(EXECUTABLES)
 
-neurotic reset : libneurobot.o
+$(EXECUTABLES) : libneurobot.o
