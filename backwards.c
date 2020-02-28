@@ -18,26 +18,37 @@
 /* Boilerplate: number of cells including muscles. */
 #define N_CELLS 28
 
-/* We actually care about the other states too, but when only one is
- * designated in an initializer, the others default to zero. 
- */
+
+/* The array of cell states. */
 struct state states[] = {
-    [0 ... N_CELLS-1] = {.v=-60}
+    [0 ... N_CELLS-1] = {.v=-60, .u=0, .i=0, .j=0}
 };
 
-/* Initialize the neuron parameters using the cell types defined in
- * libneurobot.h, which are #defined to be designated initializers...
+/* 
+ * Initialize the neuron parameters using two standard cell types.
  */
-const struct params params[N_CELLS] = {
-    [0] = RS, [1] = RS, [2] = LTS,
-    [3] = RS, [4] = RS, [5] = LTS,
-    [6] = RS, [7] = RS, [8] = LTS,
-    [9] = RS, [10] = RS, [11] = LTS,
-    [12] = RS, [13] = RS, [14] = LTS,
-    [15] = RS, [16] = RS, [17] = LTS,
-    [18] = RS, [19] = RS, [20] = LTS,
-    [21] = RS, [22] = RS, [23] = LTS,
-    [24 ... 27] = RS
+const struct params RS = {
+    .a=0.03, .b=-2, .c=-50, .d=100,
+    .C=100, .k=0.7, .tau=5,
+    .vr=-60, .vt=-40, .vp=25, .vn=0
+};
+
+const struct params LTS = {
+    .a=0.03, .b=8, .c=-53, .d=20,
+    .C=100, .k=1, .tau=20,
+    .vr=-56, .vt=-42, .vp=25, .vn=-70
+};
+
+const struct params *params[N_CELLS] = {
+    [0] = &RS, [1] = &RS, [2] = &LTS,
+    [3] = &RS, [4] = &RS, [5] = &LTS,
+    [6] = &RS, [7] = &RS, [8] = &LTS,
+    [9] = &RS, [10] = &RS, [11] = &LTS,
+    [12] = &RS, [13] = &RS, [14] = &LTS,
+    [15] = &RS, [16] = &RS, [17] = &LTS,
+    [18] = &RS, [19] = &RS, [20] = &LTS,
+    [21] = &RS, [22] = &RS, [23] = &LTS,
+    [24 ... 27] = &RS
 };
 
 
@@ -160,7 +171,7 @@ int main(int argc, char**argv)
          * consistency with the Python version. 
          */
         for (int i = 0; i < N_CELLS; i++) {
-            check_spike(&states[i], &params[i]);
+            check_spike(&states[i], params[i]);
         }
 
         /* 
@@ -209,7 +220,7 @@ int main(int argc, char**argv)
                 reversed_yet = true;
             }
 
-            resolve_dynamics(&states[i], &params[i], i_in);
+            resolve_dynamics(&states[i], params[i], i_in);
 
             datalogf(", %f", states[i].v);
         }
