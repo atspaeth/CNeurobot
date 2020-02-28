@@ -1,3 +1,6 @@
+#ifndef LIBNEUROBOT_H
+#define LIBNEUROBOT_H
+
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -22,6 +25,7 @@ float dt_ms();
 
 /* Each neuron's state variables. */
 struct state {
+
     float v, u, i, j;
 };
 
@@ -67,3 +71,5 @@ float get_current_time();
 void synchronize_loop();
 
 void print_final_time();
+
+#endif //ndef LIBNEUROBOT_H

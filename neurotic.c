@@ -11,80 +11,10 @@
 
 #include "libneurobot.h"
 
+#include "neurotic.h"
+
 /* The strength of position feedback in pA. */
 #define DEFAULT_FEEDBACK 25
-
-/* Boilerplate: number of cells including muscles. */
-#define N_CELLS 16
-
-/* The array of cell states. */
-struct state states[] = {
-    [0 ... N_CELLS-1] = {.v=-60, .u=0, .i=0, .j=0}
-};
-
-/*
- * Initialize the neuron parameters using two standard cell types.
- */
-const struct params RS = {
-    .a=0.03, .b=-2, .c=-50, .d=100,
-    .C=100, .k=0.7, .tau=5,
-    .vr=-60, .vt=-40, .vp=25, .vn=0
-};
-
-const struct params LTS = {
-    .a=0.03, .b=8, .c=-53, .d=20,
-    .C=100, .k=1, .tau=20,
-    .vr=-56, .vt=-42, .vp=25, .vn=-70
-};
-
-const struct params *params[N_CELLS] = {
-    [0] = &RS, [1] = &RS, [2] = &LTS,
-    [3] = &RS, [4] = &RS, [5] = &LTS,
-    [6] = &RS, [7] = &RS, [8] = &LTS,
-    [9] = &RS, [10] = &RS, [11] = &LTS,
-    [12 ... 15] = &RS
-};
-
-const float G[16][16] = {
-    [0][1] = 20.0,
-    [0][2] = 40.0,
-    [0][10] = 10.0,
-    [1][0] = 20.0,
-    [1][2] = 40.0,
-    [2][0] = 3.0,
-    [2][1] = 3.0,
-    [2][3] = 8.0,
-    [3][1] = 10.0,
-    [3][4] = 20.0,
-    [3][5] = 40.0,
-    [4][3] = 20.0,
-    [4][5] = 40.0,
-    [5][3] = 3.0,
-    [5][4] = 3.0,
-    [5][6] = 8.0,
-    [6][4] = 10.0,
-    [6][7] = 20.0,
-    [6][8] = 40.0,
-    [7][6] = 20.0,
-    [7][8] = 40.0,
-    [8][6] = 3.0,
-    [8][7] = 3.0,
-    [8][9] = 8.0,
-    [9][7] = 10.0,
-    [9][10] = 20.0,
-    [9][11] = 40.0,
-    [10][9] = 20.0,
-    [10][11] = 40.0,
-    [11][0] = 8.0,
-    [11][9] = 3.0,
-    [11][10] = 3.0,
-    [12][1] = 1.0,
-    [13][4] = 1.0,
-    [14][7] = 1.0,
-    [15][10] = 1.0,
-};
-
-
 
 int main(int argc, char**argv) 
 {

@@ -3,3 +3,5 @@ tags
 reset
 neurotic
 backwards
+*.csv
+neurotic.h
