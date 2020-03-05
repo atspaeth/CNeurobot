@@ -96,7 +96,9 @@ int main(int argc, char**argv)
 
             resolve_dynamics(&states[i], params[i], i_in);
 
-            datalogf(", %f", states[i].v);
+            float vlog = states[i].v;
+            if (vlog > params[i]->vp) vlog = params[i]->vp;
+            datalogf(", %f", vlog);
         }
 
         /* This part actually communicates with the motor. */
