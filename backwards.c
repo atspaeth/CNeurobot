@@ -9,121 +9,27 @@
 
 #include "libneurobot.h"
 
+#include "backwards.h"
+
 /* The strength of position feedback in pA. */
-#define DEFAULT_FEEDBACK 5
+#define DEFAULT_FEEDBACK 25
 
 /* The default time for the CPG to switch direction, in ms. */
 #define DEFAULT_REVERSAL_TIME 10e3
 
-/* Boilerplate: number of cells including muscles. */
-#define N_CELLS 28
-
-
-/* The array of cell states. */
-struct state states[] = {
-    [0 ... N_CELLS-1] = {.v=-60, .u=0, .i=0, .j=0}
-};
-
-/* 
- * Initialize the neuron parameters using two standard cell types.
- */
-const struct params RS = {
-    .a=0.03, .b=-2, .c=-50, .d=100,
-    .C=100, .k=0.7, .tau=5,
-    .vr=-60, .vt=-40, .vp=25, .vn=0
-};
-
-const struct params LTS = {
-    .a=0.03, .b=8, .c=-53, .d=20,
-    .C=100, .k=1, .tau=20,
-    .vr=-56, .vt=-42, .vp=25, .vn=-70
-};
-
-const struct params *params[N_CELLS] = {
-    [0] = &RS, [1] = &RS, [2] = &LTS,
-    [3] = &RS, [4] = &RS, [5] = &LTS,
-    [6] = &RS, [7] = &RS, [8] = &LTS,
-    [9] = &RS, [10] = &RS, [11] = &LTS,
-    [12] = &RS, [13] = &RS, [14] = &LTS,
-    [15] = &RS, [16] = &RS, [17] = &LTS,
-    [18] = &RS, [19] = &RS, [20] = &LTS,
-    [21] = &RS, [22] = &RS, [23] = &LTS,
-    [24 ... 27] = &RS
-};
-
-
-const float S[N_CELLS][N_CELLS] = {
- {    0, 1000,-1000,    0,    0,    0,    0,    0,    0,    0,  400,    0, 
-      0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0},
- { 1000,    0,-1000,    0,    0,    0,    0,    0,    0,    0,    0,    0, 
-      0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0},
- {  100,  100,    0,  400,    0,    0,    0,    0,    0,    0,    0,    0, 
-      0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0},
- {    0,  400,    0,    0, 1000,-1000,    0,    0,    0,    0,    0,    0, 
-      0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0},
- {    0,    0,    0, 1000,    0,-1000,    0,    0,    0,    0,    0,    0, 
-      0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0},
- {    0,    0,    0,  100,  100,    0,  400,    0,    0,    0,    0,    0, 
-      0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0},
- {    0,    0,    0,    0,  400,    0,    0, 1000,-1000,    0,    0,    0, 
-      0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0},
- {    0,    0,    0,    0,    0,    0, 1000,    0,-1000,    0,    0,    0, 
-      0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0},
- {    0,    0,    0,    0,    0,    0,  100,  100,    0,  400,    0,    0, 
-      0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0},
- {    0,    0,    0,    0,    0,    0,    0,  400,    0,    0, 1000,-1000, 
-      0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0},
- {    0,    0,    0,    0,    0,    0,    0,    0,    0, 1000,    0,-1000, 
-      0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0},
- {  400,    0,    0,    0,    0,    0,    0,    0,    0,  100,  100,    0, 
-      0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0},
- {    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 
-      0, 1000,-1000,    0,  400,    0,    0,    0,    0,    0,    0,    0},
- {    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 
-   1000,    0,-1000,    0,    0,    0,    0,    0,    0,    0,    0,    0},
- {    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 
-    100,  100,    0,    0,    0,    0,    0,    0,    0,  400,    0,    0},
- {    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 
-      0,    0,    0,    0, 1000,-1000,    0,  400,    0,    0,    0,    0},
- {    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 
-      0,    0,    0, 1000,    0,-1000,    0,    0,    0,    0,    0,    0},
- {    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 
-    400,    0,    0,  100,  100,    0,    0,    0,    0,    0,    0,    0},
- {    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 
-      0,    0,    0,    0,    0,    0,    0, 1000,-1000,    0,  400,    0},
- {    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 
-      0,    0,    0,    0,    0,    0, 1000,    0,-1000,    0,    0,    0},
- {    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 
-      0,    0,    0,  400,    0,    0,  100,  100,    0,    0,    0,    0},
- {    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 
-      0,  400,    0,    0,    0,    0,    0,    0,    0,    0, 1000,-1000},
- {    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 
-      0,    0,    0,    0,    0,    0,    0,    0,    0, 1000,    0,-1000},
- {    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 
-      0,    0,    0,    0,    0,    0,  400,    0,    0,  100,  100,    0},
- {    0,   40,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, 
-      0,   40,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0},
- {    0,    0,    0,    0,   40,    0,    0,    0,    0,    0,    0,    0, 
-      0,    0,    0,    0,   40,    0,    0,    0,    0,    0,    0,    0},
- {    0,    0,    0,    0,    0,    0,    0,   40,    0,    0,    0,    0, 
-      0,    0,    0,    0,    0,    0,    0,   40,    0,    0,    0,    0},
- {    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,   40,    0, 
-      0,    0,    0,    0,    0,    0,    0,    0,    0,    0,   40,    0},
-}; 
 
 int main(int argc, char**argv) 
 {
 
     /*
-     * Allow user specification of the feedback constant and when to
-     * reverse direction.
+     * Parsing command-line options.
      */
     float feedback = DEFAULT_FEEDBACK;
     float reverse_time_ms = DEFAULT_REVERSAL_TIME;
 
     int opt;
     char *endptr;
-    while ((opt = getopt(argc, argv, "p:k:")) != -1) {
+    while ((opt = getopt(argc, argv, "p:k:r:")) != -1) {
         if (opt == 'p') {
             set_pwm_max(strtod(optarg, &endptr));
             if (endptr && *endptr != '\0')
@@ -181,9 +87,12 @@ int main(int argc, char**argv)
         for (int i = 0; i < N_CELLS; i++) {
             float i_in = 0;
 
-            /* Compute synaptic current. */
+            /* 
+             * Compute synaptic current.
+             */
             for (int j = 0; j < N_CELLS; j++) {
-                i_in += S[i][j] * states[j].i;
+                float deltaV = params[j]->vn - states[i].v;
+                i_in += G[i][j] * deltaV * states[j].i;
             }
 
             /* Compute feedback current. */
