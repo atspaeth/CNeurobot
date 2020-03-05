@@ -1,4 +1,4 @@
-CPGS=neurotic # backwards
+CPGS=forwards # backwards
 EXECUTABLES=reset $(CPGS)
 
 PLATFORM=-mcpu=cortex-a8 -mfloat-abi=hard -mfpu=neon -mtune=cortex-a8

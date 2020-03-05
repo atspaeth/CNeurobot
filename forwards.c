@@ -1,17 +1,15 @@
 /*
  *
- * neurotic.c
+ * forwards.c
  *
  * The basic forward-only controller which produces the results reported
- * in the RoboSoft paper. This has been split up now so that related
- * scripts don't duplicate a bunch of code to produce the same behavior.
- * Most of the actual work is done in libneurobot.c.
+ * in the RoboSoft paper. 
  *
  */
 
 #include "libneurobot.h"
 
-#include "neurotic.h"
+#include "forwards.h"
 
 /* The strength of position feedback in pA. */
 #define DEFAULT_FEEDBACK 25
@@ -20,8 +18,7 @@ int main(int argc, char**argv)
 {
 
     /*
-     * Allow user specification of the feedback constant 
-     * and maximum PWM duty cycle.
+     * Parsing command-line options.
      */
     float feedback = DEFAULT_FEEDBACK;
 
@@ -80,7 +77,7 @@ int main(int argc, char**argv)
             float i_in = 0;
 
             /* 
-             * Compute synaptic current.  
+             * Compute synaptic current.
              */
             for (int j = 0; j < N_CELLS; j++) {
                 float deltaV = params[j]->vn - states[i].v;

@@ -2,7 +2,8 @@ __pycache__/
 tags
 *.o
 reset
-neurotic
+forwards
 backwards
 *.csv
-neurotic.h
+backwards.h
+forwards.h
