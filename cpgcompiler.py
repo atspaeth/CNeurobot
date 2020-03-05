@@ -90,33 +90,33 @@ class CPGBase(Organoid):
     def start(self):
         self.fired[0] = True
 
-    def dump_source(self):
+    def dump_source(self, f=None):
         """
         Prints the connectivity and parameters as C source code.
         """
-        print('#include "libneurobot.h"\n')
-        print(f'#define N_CELLS {self.N}\n')
+        print('#include "libneurobot.h"\n', file=f)
+        print(f'#define N_CELLS {self.N}\n', file=f)
 
-        print('struct state states[N_CELLS] = {')
-        print('  [0 ... N_CELLS-1] = {.v=-60, .u=0, .i=0, .j=0}')
-        print('};\n')
+        print('struct state states[N_CELLS] = {', file=f)
+        print('  [0 ... N_CELLS-1] = {.v=-60, .u=0, .i=0, .j=0}', file=f)
+        print('};\n', file=f)
 
         for type in set(self.cell_types):
             a, b, c, d, C, k, vr, vt, vp, vn, tau = NEURON_TYPES[type]
-            print(f'const struct params {type.upper()} = {{')
-            print(f'  .a={a}, .b={b}, .c={c}, .d={d},')
-            print(f'  .C={C}, .k={k}, .tau={tau},')
-            print(f'  .vr={vr}, .vt={vt}, .vp={vp}, .vn={vn}')
-            print(f'}};\n')
+            print(f'const struct params {type.upper()} = {{', file=f)
+            print(f'  .a={a}, .b={b}, .c={c}, .d={d},', file=f)
+            print(f'  .C={C}, .k={k}, .tau={tau},', file=f)
+            print(f'  .vr={vr}, .vt={vt}, .vp={vp}, .vn={vn}', file=f)
+            print(f'}};\n', file=f)
 
-        print('\nconst struct params *params[N_CELLS] = {')
+        print('\nconst struct params *params[N_CELLS] = {', file=f)
         for i,type in enumerate(self.cell_types):
-            print(f'  [{i}] = &{type.upper()},')
-        print('};\n')
+            print(f'  [{i}] = &{type.upper()},', file=f)
+        print('};\n', file=f)
 
-        print('const float G[N_CELLS][N_CELLS] = {')
+        print('const float G[N_CELLS][N_CELLS] = {', file=f)
         for (i,j),gij in np.ndenumerate(self.G):
             if gij != 0:
-                print(f'\t[{i}][{j}] = {gij},')
-        print(f'}};')
+                print(f'\t[{i}][{j}] = {gij},', file=f)
+        print(f'}};', file=f)
 

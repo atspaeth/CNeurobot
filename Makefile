@@ -16,7 +16,7 @@ all : $(EXECUTABLES)
 
 $(CPGOFILES): %.o : %.h
 $(CPGHEADERS): %.h : %.py
-	python3 $< > $@
+	python3 $< $@
 
 $(EXECUTABLES) : libneurobot.o
 

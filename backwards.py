@@ -1,6 +1,9 @@
 import numpy as np
 
-import cpgcompiler as cpg
+try:
+    import cpgcompiler as cpg
+except ImportError:
+    from . import cpgcompiler as cpg
 
 class DoubleCPG(cpg.CPGBase):
     def __init__(self, Gexc=20, Ginh=40, Gffw=10, Gfb=8, Gslow=3, Gmusc=1):
@@ -41,4 +44,12 @@ class DoubleFeedbackCPG(DoubleCPG):
 
 
 if __name__ == '__main__':
-    DoubleCPG().dump_source()
+    import argparse
+
+    parser = argparse.ArgumentParser(
+            description='Generate C code for a forward CPG.')
+    parser.add_argument('file', help='output filename')
+    args = parser.parse_args()
+
+    with open(args.file, 'w') as f:
+        DoubleCPG().dump_source(f)

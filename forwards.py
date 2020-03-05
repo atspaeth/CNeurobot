@@ -1,9 +1,12 @@
 import numpy as np
 
-import cpgcompiler as cpg
+try:
+    import cpgcompiler as cpg
+except ImportError:
+    from . import cpgcompiler as cpg
 
 class SingleCPG(cpg.CPGBase):
-    def __init__(self, Gexc=20, Ginh=40, Gffw=10, Gfb=8, Gslow=3, Gmusc=1):
+    def __init__(self, Gexc=20, Ginh=60, Gffw=10, Gfb=8, Gslow=3, Gmusc=1):
         
         G = cpg.connectivity(
             cpg.module(0, Gexc=Gexc, Ginh=Ginh, Gslow=Gslow) + 
@@ -33,4 +36,12 @@ class SingleFeedbackCPG(SingleCPG):
 
 
 if __name__ == '__main__':
-    SingleCPG().dump_source()
+    import argparse
+
+    parser = argparse.ArgumentParser(
+            description='Generate C code for a forward CPG.')
+    parser.add_argument('file', help='output filename')
+    args = parser.parse_args()
+
+    with open(args.file, 'w') as f:
+        SingleCPG().dump_source(f)
